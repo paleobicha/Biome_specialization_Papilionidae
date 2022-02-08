@@ -1,0 +1,402 @@
+#####Monte Carlo#####
+library(plyr)
+library(ggplot2)
+
+rm(list=ls())
+options(stringsAsFactors=FALSE)
+
+BSI<-function(n){
+  name<-name
+  archivo<-paste(name,".txt", sep="")
+  setwd("/Volumes/data_BSI_MC")
+  a<-read.table(file=archivo, header=FALSE)
+  bsidea<-rowSums(a)
+  maxbsi<-max(bsidea)
+  sp<-nrow(a)
+  sumbiom<-colSums(a)
+  sim=10000
+  mc<-array(NA, dim=c(sp,10,sim))
+  m<-array(NA, dim=dim(a))
+  for (i in 1:sim){
+    for (k in 1:10){
+      m[,k]<-sample(a[,k])
+    }
+    mc[,,i]<-m
+  }
+  
+  
+  bsimc<-matrix(data=NA, nrow=sp, ncol=sim)
+  bsi<-1
+  for(j in 1:sim){
+    bsi<-(rowSums(mc[,,j]))
+    bsimc[,j]<-(bsi)
+  }
+  
+  bsimc2<-matrix(data=NA, nrow=sp, ncol=sim)
+  for(i in 1:(sp*sim)){
+    if(bsimc[i]==0){
+      bsimc2[i]<-NA
+      
+    }
+    else(bsimc2[i]=bsimc[i])
+    
+  }	
+  BSI<-matrix(data=NA, nrow=1, ncol=10)
+  for(b in 1:maxbsi){
+    BSI[b]=sum(bsidea==b)
+  }
+  BSI[is.na(BSI)] <- 0		
+  
+  ##tabla BSI		
+  table<-matrix(data=NA, nrow=10, ncol=7)
+  table2<-matrix(data=NA, nrow=10, ncol=2)
+  for(k in 1:10){
+    sumx<-1
+    sm<-1
+    for(i in 1:sim){
+      sumx[i]=sum(bsimc[,i]==0)
+      sm[i]=100*(sum(bsimc[,i]==k))/(sp-sumx[i])	
+    }
+    
+    obs=100*BSI[k]/sp
+    obs2<-format(obs, digits=2)
+    
+    if(max(sm)==0){pvalue=1}
+    else{if(obs==0){pvalue=sum(sm==obs)/sim}
+      
+      else{if (sum(sm>obs)/sum(sm<=obs)>1){
+        pvalue=sum(sm<obs)/sum(sm>=obs)
+      }
+        else{pvalue=sum(sm>obs)/sum(sm<=obs)}}}
+    
+    
+    
+    pvalue2<-format(pvalue, digits=3)
+    table[k,1]<-k
+    table[k,2]<-format(100*BSI[k]/sp, digits=3)
+    table[k,3]<-format(mean(sm), digits=2)
+    table[k,4]<-format(sd(sm), digits=2)
+    max2<-format(max(sm), digits=2)
+    min2<-format(min(sm), digits=2)
+    table[k,5]<-paste(min2,"-",max2)
+    table[k,6]<-pvalue2
+    table2[k,1]<-k
+    table2[k,2]<-mean(sm)*sp/100
+  }
+  
+  show(table)
+  write.table(table, file=paste(name," BSI.txt", sep=""), quote=FALSE,sep="	",  row.names=FALSE, col.names=FALSE)
+
+  hist(bsidea, breaks=c(0,1,2,3,4,5,6,7,8,9,10),xaxp=c(0,10,10), labels=FALSE, xlab="BSI", ylab="% species", ylim=c(0,3*sp/4),main=paste("Papilionidae"), right=TRUE,las=1,axes=F)
+  axis(2,c(0,sp/4,sp/2,3*sp/4),labels=c(0,25,50,75),las=1, col="darkgrey")
+  axis(1,c(0.5:9.5),labels=c(1:10), col="darkgrey")
+  points(table2[,1]-0.5, table2[,2], pch=20, cex=2)
+  legend("topright",c(paste("Mean =",format(mean(bsidea),digits=3)),paste("Sd=",format(sd(bsidea), digits=3)),paste("N =",nrow(a))),bty="n",cex=1.1,yjust=1)
+  dev.copy2pdf(device=quartz,file=paste("papilionidae",".pdf",sep=""))
+  
+  ###TABLA BSI=1
+  tablabsi1<-matrix(data=NA, nrow=10, ncol=8)
+  tablabsi1[,1]<-c("I","II","II/III","III","IV","V","VI","VII","VIII","IX")
+  tablabsi1[,2]<-sumbiom##sp en cada bioma
+  bioma<-1
+  bsis<-1
+  biomebsi<-1
+  col5<-1
+  for(v in 1:10){
+    bioma=mc[,v,]*bsimc2
+    nbsi<-matrix(data=NA, nrow=sim, ncol=1)
+    biomebsi=a[,v]*bsidea
+    for(z in 1:1){
+      tablabsi1[v,3]<-sum(biomebsi==z)##especialistas en cada bioma
+      
+      
+      nbsi<-colSums(bioma==z, na.rm=TRUE)/(sumbiom[v])*100##% de especialistas dentro de las sp de ese bioma de las simulaciones
+      
+      
+    }
+    
+    
+    percentage<-(sum(biomebsi==z)/(sumbiom[v]))*100##% de especialistas dentro de las sp de ese bioma OBSERVADOS para los c??lculos
+    
+    if(sumbiom[v]==0){pvalue=1
+    pvalue2<-format(pvalue, digits=3)
+    tablabsi1[v,4]<-0##% de especialistas dentro de las sp de ese bioma OBSERVADOS##
+    tablabsi1[v,5]<-0
+    tablabsi1[v,6]<-0
+    min<-0
+    max<-0
+    tablabsi1[v,7]<-paste(min,"-",max)
+    tablabsi1[v,8]<-pvalue2	
+    
+    
+    
+    }
+    else{
+      tablabsi1[v,4]<-format(((sum(biomebsi==z))/(sumbiom[v])*100), digits=4)##% de especialistas dentro de las sp de ese bioma OBSERVADOS##
+      
+      if (sum(nbsi>percentage)/sum(nbsi<=percentage)>1){
+        pvalue=sum(nbsi<percentage)/sum(nbsi>=percentage)
+      }
+      else{pvalue=sum(nbsi>percentage)/sum(nbsi<=percentage)}
+      pvalue2<-format(pvalue, digits=3)
+      
+      
+      
+      tablabsi1[v,5]<-format(mean(nbsi), digits=3)
+      tablabsi1[v,6]<-format(sd(nbsi), digits=2)
+      min<-format(min(nbsi), digits=3)
+      max<-format(max(nbsi), digits=3)
+      tablabsi1[v,7]<-paste(min,"-",max)
+      tablabsi1[v,8]<-pvalue2	
+    }
+    
+    
+  }
+  show(tablabsi1)		
+  write.table(tablabsi1, file=paste(name," BSI=1.txt", sep=""), quote=FALSE,sep="	",  row.names=FALSE, col.names=FALSE)		
+  
+  
+}
+  
+BSI("papilionidae") 
+
+#####BAMM & DR####
+library(coda)
+library(BAMMtools)
+library(picante)
+library(ape)
+library(geiger)
+library(nlme)
+library(phytools)
+library(bestNormalize)
+
+setwd("/Volumes/remanuscript")
+phy <- read.tree("Papilionidae.tre")
+ed <- getEventData(phy, "event_data.txt", burnin=0.15)
+
+ratetree <- getMeanBranchLengthTree(ed, rate='speciation')
+
+Bammspe <- ed$meanTipLambda
+Bammext <- ed$meanTipMu
+Bammdiv <- Bammspe - Bammext
+
+ED_tips <- evol.distinct(phy, type = "equal.splits", scale = FALSE, use.branch.lengths = TRUE)
+ED <- ED_tips$w
+DR <- 1/ED
+names(DR) <- ED_tips$Species
+names(Bammspe) <- ED_tips$Species
+names(Bammext) <- ED_tips$Species
+names(Bammdiv) <- ED_tips$Species
+
+a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
+bsi <- a$bsi
+names(bsi) <- a$tip.label
+
+bsi <- a$bsi
+names(bsi) <- a$tip.label
+setdiff(names(DR_ordenado), names(bsi))
+or <- match(names(DR),names(bsi))
+DR_ordenado <- DR[or]
+Bdi_ordenado <- Bammdiv[or]
+
+oc<-read.table("/Volumes/DR/DRbsi.txt" ,header=TRUE)
+sp <- oc$Species
+names(sp) <- oc$Species
+or_dr <- match(names(DR_ordenado), names(sp))
+or_bamm <- match(names(Bdi_ordenado), names(sp))
+OC_ordenado_dr <- oc[or_dr,]
+OC_ordenado_bamm <- oc[or_bamm,]
+row.names(OC_ordenado_dr) <- 1:nrow(OC_ordenado_dr)
+row.names(OC_ordenado_bamm) <- 1:nrow(OC_ordenado_bamm)
+
+df_dr <-data.frame(DR_ordenado, bsi)
+df_bamm <-data.frame(Bdi_ordenado, bsi)
+df_dr$bsi <- as.factor(df_dr$bsi)
+df_bamm$bsi <- as.factor(df_bamm$bsi)
+
+data <- a
+data$DR <- DR 
+data$Bamm <- Bammdiv
+bsi <- data[, "bsi"]
+DR <- data[, "DR"]
+bamm <- data[, "Bamm"]
+names(bsi) <- names(DR) <- names(bamm) <- rownames(data)
+
+pglsModel <- gls(DR ~ bsi, correlation = corBrownian(phy = phy),
+                 data = data, method = "REML")
+summary(pglsModel)
+
+
+pglsModel <- gls(bamm ~ bsi, correlation = corBrownian(phy = phy),
+                 data = data, method = "REML")
+summary(pglsModel)
+
+
+specialist <- a["bsi"]==1
+espe_bioma <-OC_ordenado[specialist,]
+DR_espe <- DR_ordenado[specialist]
+Bamm_espe <- Bdi_ordenado[specialist]
+data <- read.table("DR1.txt", header = T)
+steno <- read.table("stenoDR2.txt", header = T)
+DR_espe_df <- data.frame(DR_espe)
+DR_espe_df$B <- 0
+DR_espe_df$bamm <- Bamm_espe
+
+for (b in 2:11){
+  DR_espe_df[espe_bioma[,b]==1,2] <- b-1
+}
+
+drdata <- DR_espe_df$DR_espe
+drdata <- as.vector(drdata)
+names(drdata) <- rownames(DR_espe_df)
+bammdata <- DR_espe_df$bamm
+bammdata <- as.vector(bammdata)
+names(bammdata) <- rownames(DR_espe_df)
+bsidata <- DR_espe_df$B
+names(bsidata) <- rownames(DR_espe_df)
+bsidata <- factor(bsidata)
+
+ggdensity(drdata, 
+          main = "Density plot DR",
+          xlab = "DR")
+ggqqplot(drdata)
+shapiro.test(drdata)
+
+arcsinh_obj <- arcsinh_x(drdata)
+boxcox_obj <- boxcox(drdata)
+yeojohnson_obj <- yeojohnson(drdata)
+orderNorm_obj <- orderNorm(drdata)
+BNobject <- bestNormalize(drdata)
+binarize_obj <- binarize(drdata)
+
+p <- predict(orderNorm_obj)
+drdata <- p
+
+ggdensity(bammdata, 
+          main = "Density plot DR",
+          xlab = "DR")
+ggqqplot(bammdata)
+shapiro.test(bammdata)
+
+arcsinh_obj <- arcsinh_x(bammdata)
+boxcox_obj <- boxcox(bammdata)
+yeojohnson_obj <- yeojohnson(bammdata)
+orderNorm_obj <- orderNorm(bammdata)
+BNobject <- bestNormalize(bammdata)
+binarize_obj <- binarize(bammdata)
+
+p <- predict(orderNorm_obj)
+bammdata <- p
+
+anova_dr <- aov.phylo(drdata ~ bsidata, phy, nsim = 1000)
+anova_bamm<- aov.phylo(bammdata ~ bsidata, phy, nsim = 1000)
+
+#####HISSE######
+library(hisse)
+library(geiger)
+library(qpcR)
+library(diversitree)
+
+set.seed(7)
+
+setwd("/Volumes//DR")
+phy <- read.tree("Papilionidae_treecutH1.tre")
+
+a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
+atotal <- read.table("/Volumes//HISSE/HiSSEmatrix.txt" ,header=TRUE)
+
+hdata <- a
+hdata[hdata[,2]>1,2] <- 0
+rownames(hdata) <- hdata$tip.label
+hdata <- hdata[-1]
+name.check(phy,hdata)
+htrait<-cbind(rownames(hdata), hdata[,"bsi"])
+
+hdatat <- atotal
+hdatat[hdatat[,2]>1,2] <- 0
+rownames(hdatat) <- hdatat$tip.label
+hdatat <- hdatat[-1]
+name.check(phy,hdatat)
+htrait<-cbind(rownames(hdatat), hdatat[,"bsi"])
+
+sampling.f = c(1, 1)
+sampling.f. <- c(194/268, 199/326)
+
+turnover=c(1,1,2,2)
+eps=c(1,1,2,2)
+## The character-independent (null) diversification model
+trans.rates.CID <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.CID <- ParDrop(trans.rates.CID, c(3,5,8,10))
+trans.rates.CID[!is.na(trans.rates.CID) & !trans.rates.CID == 0] = 1
+CID <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,1,2,2), eps.anc=c(1,1,2,2), trans.rate=trans.rates.CID, output.type="raw")
+print(CID)
+
+CID
+
+## The full BiSSE model (but check the best fit model from the 8 BiSSE models tested)
+trans.rates.bisse <- TransMatMaker.old(hidden.states=FALSE) 
+full.BiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=FALSE, turnover.anc=c(1,2), eps.anc=c(1,2), trans.rate=trans.rates.bisse, output.type="raw")
+print(full.BiSSE)
+
+## The hidden state model for state 0
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(3,5,6,8,9,10,11,12))
+state0.HiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,2,3,0), eps.anc=c(1,2,3,0), trans.rate=trans.rates.hisse, output.type="raw")
+print(state0.HiSSE)
+
+## The hidden state model for state 1
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(2,3,5,7,8,9,10,12))
+state1.HiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,2,0,3), eps.anc=c(1,2,0,3), trans.rate=trans.rates.hisse, output.type="raw")
+print(state1.HiSSE)
+
+## The full hisse model (with transition rates all different except dual transitions)
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(3 ,5 ,8 ,10))
+full.HiSSE <- hisse.old(phy, htrait,  f= sampling.f, hidden.states=TRUE, turnover.anc = c (1, 2, 3, 4),eps.anc = c (1, 2, 3, 4), trans.rate= trans.rates.hisse, output.type = "raw")
+print(full.HiSSE)
+
+# Results
+results<-matrix(NA,5,17)
+colnames(results)<-c("Model","NP","logL","AICc","deltaAIC","lambda0","lambda1","hidden lambda0","hidden lambda1","mu0","mu1","hidden mu0","hidden mu1","q01","q10","hidden q01","hidden q10")
+results[,1]<-c("CID model","full BiSSE model","HiSSE model for state 0","HiSSE model for state 1","full HiSSE model")
+
+#NP
+results[1,2]<-5
+results[2,2]<-6
+results[3,2]<-10
+results[4,2]<-10
+results[5,2]<-16
+
+#logL
+results[1,3]<-round(CID$loglik,3)
+results[2,3]<-round(full.BiSSE$loglik,3)
+results[3,3]<-round(state0.HiSSE$loglik,3)
+results[4,3]<-round(state1.HiSSE$loglik,3)
+results[5,3]<-round(full.HiSSE$loglik,3)
+
+#AICc
+results[1,4]<-round(CID$AICc,3)
+results[2,4]<-round(full.BiSSE$AICc,3)
+results[3,4]<-round(state0.HiSSE$AICc,3)
+results[4,4]<-round(state1.HiSSE$AICc,3)
+results[5,4]<-round(full.HiSSE$AICc,3)
+
+#deltaAIC
+all.AICc<-c(as.numeric(results[,4]))
+deltaAIC<-akaike.weights(all.AICc)
+results[,5]<-round(deltaAIC$deltaAIC, 3)
+
+full.HiSSE$index.par
+print(results)
+write.table(results, file="Results_HiSSE_Papilionidae.txt",quote=FALSE,sep="\t",row.names=FALSE)
+
+## Marginal ancestral state reconstruction and rate estimates
+
+PP<-MarginReconHiSSE(phy, htrait, f=sampling.f, pars=state1.HiSSE$solution, hidden.states=TRUE, condition.on.survival=TRUE, root.type="madfitz", root.p=NULL, AIC= full.HiSSE$AIC, verbose=TRUE)
+class(PP)
+save(PP, file="Papilionidae_HiSSE_marginal_reconstruction.Rsave")
+#load("Oreocharis_HiSSE_marginal_reconstruction.Rsave")
+quartz()
+plot.hisse.states(PP, rate.param = "net.div", type = "fan", show.tip.label = FALSE, legend = "all", fsize = 1.0, rate.colors=c("yellow", "red"))
+dev.print(pdf, "Marginal reconstruction for the full HiSSE model on Oreocharis.pdf")
