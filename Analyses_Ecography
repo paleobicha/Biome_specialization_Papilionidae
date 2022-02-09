@@ -1,4 +1,7 @@
-#####Monte Carlo#####
+#######################################################################
+######################## Monte Carlo function #########################
+#######################################################################
+
 library(plyr)
 library(ggplot2)
 
@@ -160,7 +163,11 @@ BSI<-function(n){
   
 BSI("papilionidae") 
 
-#####BAMM & DR####
+
+#######################################################################
+######################### BAMM & DR analyses ##########################
+#######################################################################
+
 library(coda)
 library(BAMMtools)
 library(picante)
@@ -170,15 +177,21 @@ library(nlme)
 library(phytools)
 library(bestNormalize)
 
+#Getting the phylogeny and the previosusly computed BAMM file
+
 setwd("/Volumes/remanuscript")
 phy <- read.tree("Papilionidae.tre")
 ed <- getEventData(phy, "event_data.txt", burnin=0.15)
+
+#To calculate BAMM diversification rate
 
 ratetree <- getMeanBranchLengthTree(ed, rate='speciation')
 
 Bammspe <- ed$meanTipLambda
 Bammext <- ed$meanTipMu
 Bammdiv <- Bammspe - Bammext
+
+# To calculate DR diversification rate
 
 ED_tips <- evol.distinct(phy, type = "equal.splits", scale = FALSE, use.branch.lengths = TRUE)
 ED <- ED_tips$w
@@ -188,10 +201,9 @@ names(Bammspe) <- ED_tips$Species
 names(Bammext) <- ED_tips$Species
 names(Bammdiv) <- ED_tips$Species
 
-a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
-bsi <- a$bsi
-names(bsi) <- a$tip.label
+#To load biome occupancy data, check for failures, sort and prepare data for PGLS analyses
 
+a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
 bsi <- a$bsi
 names(bsi) <- a$tip.label
 setdiff(names(DR_ordenado), names(bsi))
@@ -222,6 +234,8 @@ DR <- data[, "DR"]
 bamm <- data[, "Bamm"]
 names(bsi) <- names(DR) <- names(bamm) <- rownames(data)
 
+#PGLS analyses
+
 pglsModel <- gls(DR ~ bsi, correlation = corBrownian(phy = phy),
                  data = data, method = "REML")
 summary(pglsModel)
@@ -231,6 +245,7 @@ pglsModel <- gls(bamm ~ bsi, correlation = corBrownian(phy = phy),
                  data = data, method = "REML")
 summary(pglsModel)
 
+#To prepare and normalize data for phyloANOVA analyses
 
 specialist <- a["bsi"]==1
 espe_bioma <-OC_ordenado[specialist,]
@@ -288,10 +303,14 @@ binarize_obj <- binarize(bammdata)
 p <- predict(orderNorm_obj)
 bammdata <- p
 
+##phyloANOVA
+
 anova_dr <- aov.phylo(drdata ~ bsidata, phy, nsim = 1000)
 anova_bamm<- aov.phylo(bammdata ~ bsidata, phy, nsim = 1000)
 
-#####HISSE######
+#######################################################################
+############################## HISSE ##################################
+#######################################################################
 library(hisse)
 library(geiger)
 library(qpcR)
@@ -299,11 +318,14 @@ library(diversitree)
 
 set.seed(7)
 
+#To load data
+
 setwd("/Volumes//DR")
 phy <- read.tree("Papilionidae_treecutH1.tre")
-
 a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
 atotal <- read.table("/Volumes//HISSE/HiSSEmatrix.txt" ,header=TRUE)
+
+#To prepare data
 
 hdata <- a
 hdata[hdata[,2]>1,2] <- 0
