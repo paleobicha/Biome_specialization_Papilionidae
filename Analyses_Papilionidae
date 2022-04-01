@@ -221,29 +221,58 @@ OC_ordenado_bamm <- oc[or_bamm,]
 row.names(OC_ordenado_dr) <- 1:nrow(OC_ordenado_dr)
 row.names(OC_ordenado_bamm) <- 1:nrow(OC_ordenado_bamm)
 
-df_dr <-data.frame(DR_ordenado, bsi)
-df_bamm <-data.frame(Bdi_ordenado, bsi)
-df_dr$bsi <- as.factor(df_dr$bsi)
-df_bamm$bsi <- as.factor(df_bamm$bsi)
+###We crete the data frame sorted alphabetically
+data_frame <- data.frame(matrix(nrow=393, ncol=3))
+data_frame[,1] <- ED_tips$Species
+data_frame[,2] <- DR
+df_abc <- data_frame[order(data_frame$X1),]
+names(df_abc) <- c("species", "dr", "area")
+df_abc$area <- 0
 
-data <- a
-data$DR <- DR 
-data$Bamm <- Bammdiv
-bsi <- data[, "bsi"]
-DR <- data[, "DR"]
-bamm <- data[, "Bamm"]
-names(bsi) <- names(DR) <- names(bamm) <- rownames(data)
+##Loading species distribution shapefiles and calculating species areas
+setwd("~/Volume/Clips/DR")
+list.files()
+mapas<- list.files( , pattern="\\.shp$")
+#files <- as.character(mapas)
+#files = substr(files,1,nchar(files)-4)
+#setdiff(files, names(DR))
+#or <- match(names(DR))
+#or <- match(files ,names(DR))
+#mapas <- mapas[or]
+nuestromapa<- CRS ( "+proj=eck4 +datum=WGS84")
+prj_standard<- CRS ( "+proj=longlat +datum=WGS84")
+
+for (i in 1:393){
+  kk<- readShapePoly(mapas[i], proj4string=nuestromapa, repair=T)
+  kkarea<- sum(raster::area(kk))
+  df_abc$area[i] <- kkarea
+  print(kkarea)
+}
+
+
+setwd("~/Volumes/DR/")
+data <- read.table("DRmatrix.txt", row.names = 1, header=T)
+head(data)
+data <- data[order(rownames(data)),]
+df_abc$bsi <- as.factor(data)
 
 #PGLS analyses
 
-pglsModel <- gls(DR ~ bsi, correlation = corBrownian(phy = phy),
-                 data = data, method = "REML")
-summary(pglsModel)
+library(caper)
 
+Data <- comparative.data(phy = phy, data = df_abc,
+                            names.col = species, vcv = TRUE,
+                            na.omit = FALSE, warn.dropped = TRUE)
 
-pglsModel <- gls(bamm ~ bsi, correlation = corBrownian(phy = phy),
-                 data = data, method = "REML")
-summary(pglsModel)
+model.pgls <- pgls(dr ~ area,
+                   data = Data, lambda = "ML")
+
+summary(model.pgls)
+
+model.pgls <- pgls(dr ~ bsi,
+                   data = Data, lambda = "ML")
+
+summary(model.pgls)
 
 #To prepare and normalize data for phyloANOVA analyses
 
@@ -415,10 +444,28 @@ write.table(results, file="Results_HiSSE_Papilionidae.txt",quote=FALSE,sep="\t",
 
 ## Marginal ancestral state reconstruction and rate estimates
 
-PP<-MarginReconHiSSE(phy, htrait, f=sampling.f, pars=state1.HiSSE$solution, hidden.states=TRUE, condition.on.survival=TRUE, root.type="madfitz", root.p=NULL, AIC= full.HiSSE$AIC, verbose=TRUE)
-class(PP)
-save(PP, file="Papilionidae_HiSSE_marginal_reconstruction.Rsave")
-#load("Oreocharis_HiSSE_marginal_reconstruction.Rsave")
-quartz()
-plot.hisse.states(PP, rate.param = "net.div", type = "fan", show.tip.label = FALSE, legend = "all", fsize = 1.0, rate.colors=c("yellow", "red"))
-dev.print(pdf, "Marginal reconstruction for the full HiSSE model on Oreocharis.pdf")
+
+#######################################################################
+######################## Variance Partition ###########################
+#######################################################################
+
+library(vegan)
+
+
+sp <- df_abc$dr
+names(sp) <- df_abc$species
+sp <- as.data.frame(sp)
+
+var <- df_abc[,c(3,4)]
+row.names(var) <- df_abc$species
+head(var)
+var$area <- log(var$area)
+var$bsi <- as.numeric(var$bsi)
+
+varp <- varpart (dr, ~ area, ~ bsi, data = df_abc)
+varp
+
+
+
+
+
