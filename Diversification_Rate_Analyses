@@ -1,0 +1,136 @@
+#######################################################################
+############################ DR analyses ##############################
+#######################################################################
+
+library(coda)
+library(picante)
+library(ape)
+library(geiger)
+library(nlme)
+library(phytools)
+library(bestNormalize)
+
+#Getting the phylogeny 
+
+setwd("/Volumes/remanuscript")
+phy <- read.tree("Papilionidae.tre")
+
+# To calculate DR diversification rate
+
+ED_tips <- evol.distinct(phy, type = "equal.splits", scale = FALSE, use.branch.lengths = TRUE)
+ED <- ED_tips$w
+DR <- 1/ED
+names(DR) <- ED_tips$Species
+
+#To load biome occupancy data, check for failures, sort and prepare data for PGLS analyses
+
+a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
+bsi <- a$bsi
+names(bsi) <- a$tip.label
+setdiff(names(DR_ordenado), names(bsi))
+or <- match(names(DR),names(bsi))
+DR_ordenado <- DR[or]
+
+oc<-read.table("/Volumes/DR/DRbsi.txt" ,header=TRUE)
+sp <- oc$Species
+names(sp) <- oc$Species
+or_dr <- match(names(DR_ordenado), names(sp))
+OC_ordenado_dr <- oc[or_dr,]
+row.names(OC_ordenado_dr) <- 1:nrow(OC_ordenado_dr)
+
+###We crete the data frame sorted alphabetically
+
+data_frame <- data.frame(matrix(nrow=393, ncol=3))
+data_frame[,1] <- ED_tips$Species
+data_frame[,2] <- DR
+df_abc <- data_frame[order(data_frame$X1),]
+names(df_abc) <- c("species", "dr", "area")
+df_abc$area <- 0
+
+##Loading species distribution shapefiles and calculating species areas
+
+setwd("~/Volume/Clips/DR")
+list.files()
+mapas<- list.files( , pattern="\\.shp$")
+#files <- as.character(mapas)
+#files = substr(files,1,nchar(files)-4)
+#setdiff(files, names(DR))
+#or <- match(names(DR))
+#or <- match(files ,names(DR))
+#mapas <- mapas[or]
+nuestromapa<- CRS ( "+proj=eck4 +datum=WGS84")
+prj_standard<- CRS ( "+proj=longlat +datum=WGS84")
+
+for (i in 1:393){
+  kk<- readShapePoly(mapas[i], proj4string=nuestromapa, repair=T)
+  kkarea<- sum(raster::area(kk))
+  df_abc$area[i] <- kkarea
+  print(kkarea)
+}
+
+
+setwd("~/Volumes/DR/")
+data <- read.table("DRmatrix.txt", row.names = 1, header=T)
+head(data)
+data <- data[order(rownames(data)),]
+df_abc$bsi <- as.factor(data)
+
+#PGLS analyses
+
+library(caper)
+
+Data <- comparative.data(phy = phy, data = df_abc,
+                            names.col = species, vcv = TRUE,
+                            na.omit = FALSE, warn.dropped = TRUE)
+
+model.pgls <- pgls(dr ~ area,
+                   data = Data, lambda = "ML")
+
+summary(model.pgls)
+
+model.pgls <- pgls(dr ~ bsi,
+                   data = Data, lambda = "ML")
+
+summary(model.pgls)
+
+#To prepare and normalize data for phyloANOVA analyses
+
+specialist <- a["bsi"]==1
+espe_bioma <-OC_ordenado[specialist,]
+DR_espe <- DR_ordenado[specialist]
+data <- read.table("DR1.txt", header = T)
+steno <- read.table("stenoDR2.txt", header = T)
+DR_espe_df <- data.frame(DR_espe)
+DR_espe_df$B <- 0
+
+for (b in 2:11){
+  DR_espe_df[espe_bioma[,b]==1,2] <- b-1
+}
+
+drdata <- DR_espe_df$DR_espe
+drdata <- as.vector(drdata)
+names(drdata) <- rownames(DR_espe_df)
+bsidata <- DR_espe_df$B
+names(bsidata) <- rownames(DR_espe_df)
+bsidata <- factor(bsidata)
+
+ggdensity(drdata, 
+          main = "Density plot DR",
+          xlab = "DR")
+ggqqplot(drdata)
+shapiro.test(drdata)
+
+arcsinh_obj <- arcsinh_x(drdata)
+boxcox_obj <- boxcox(drdata)
+yeojohnson_obj <- yeojohnson(drdata)
+orderNorm_obj <- orderNorm(drdata)
+BNobject <- bestNormalize(drdata)
+binarize_obj <- binarize(drdata)
+
+p <- predict(orderNorm_obj)
+drdata <- p
+
+
+##phyloANOVA
+
+anova_dr <- aov.phylo(drdata ~ bsidata, phy, nsim = 1000)
