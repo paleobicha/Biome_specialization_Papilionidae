@@ -1,0 +1,106 @@
+#######################################################################
+############################## HISSE ##################################
+#######################################################################
+library(hisse)
+library(geiger)
+library(qpcR)
+library(diversitree)
+
+set.seed(7)
+
+#To load data
+
+setwd("/Volumes//DR")
+phy <- read.tree("Papilionidae_treecutH1.tre")
+a<-read.table("/Volumes/DR/DRmatrix.txt" ,header=TRUE)
+atotal <- read.table("/Volumes//HISSE/HiSSEmatrix.txt" ,header=TRUE)
+
+#To prepare data
+
+hdata <- a
+hdata[hdata[,2]>1,2] <- 0
+rownames(hdata) <- hdata$tip.label
+hdata <- hdata[-1]
+name.check(phy,hdata)
+htrait<-cbind(rownames(hdata), hdata[,"bsi"])
+
+hdatat <- atotal
+hdatat[hdatat[,2]>1,2] <- 0
+rownames(hdatat) <- hdatat$tip.label
+hdatat <- hdatat[-1]
+name.check(phy,hdatat)
+htrait<-cbind(rownames(hdatat), hdatat[,"bsi"])
+
+sampling.f = c(1, 1)
+sampling.f. <- c(194/268, 199/326)
+
+turnover=c(1,1,2,2)
+eps=c(1,1,2,2)
+## The character-independent (null) diversification model
+trans.rates.CID <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.CID <- ParDrop(trans.rates.CID, c(3,5,8,10))
+trans.rates.CID[!is.na(trans.rates.CID) & !trans.rates.CID == 0] = 1
+CID <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,1,2,2), eps.anc=c(1,1,2,2), trans.rate=trans.rates.CID, output.type="raw")
+print(CID)
+
+CID
+
+## The full BiSSE model (but check the best fit model from the 8 BiSSE models tested)
+trans.rates.bisse <- TransMatMaker.old(hidden.states=FALSE) 
+full.BiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=FALSE, turnover.anc=c(1,2), eps.anc=c(1,2), trans.rate=trans.rates.bisse, output.type="raw")
+print(full.BiSSE)
+
+## The hidden state model for state 0
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(3,5,6,8,9,10,11,12))
+state0.HiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,2,3,0), eps.anc=c(1,2,3,0), trans.rate=trans.rates.hisse, output.type="raw")
+print(state0.HiSSE)
+
+## The hidden state model for state 1
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(2,3,5,7,8,9,10,12))
+state1.HiSSE <- hisse.old(phy, htrait, f=sampling.f, hidden.states=TRUE, turnover.anc=c(1,2,0,3), eps.anc=c(1,2,0,3), trans.rate=trans.rates.hisse, output.type="raw")
+print(state1.HiSSE)
+
+## The full hisse model (with transition rates all different except dual transitions)
+trans.rates.hisse <- TransMatMaker.old(hidden.states=TRUE)
+trans.rates.hisse <- ParDrop(trans.rates.hisse, c(3 ,5 ,8 ,10))
+full.HiSSE <- hisse.old(phy, htrait,  f= sampling.f, hidden.states=TRUE, turnover.anc = c (1, 2, 3, 4),eps.anc = c (1, 2, 3, 4), trans.rate= trans.rates.hisse, output.type = "raw")
+print(full.HiSSE)
+
+# Results
+results<-matrix(NA,5,17)
+colnames(results)<-c("Model","NP","logL","AICc","deltaAIC","lambda0","lambda1","hidden lambda0","hidden lambda1","mu0","mu1","hidden mu0","hidden mu1","q01","q10","hidden q01","hidden q10")
+results[,1]<-c("CID model","full BiSSE model","HiSSE model for state 0","HiSSE model for state 1","full HiSSE model")
+
+#NP
+results[1,2]<-5
+results[2,2]<-6
+results[3,2]<-10
+results[4,2]<-10
+results[5,2]<-16
+
+#logL
+results[1,3]<-round(CID$loglik,3)
+results[2,3]<-round(full.BiSSE$loglik,3)
+results[3,3]<-round(state0.HiSSE$loglik,3)
+results[4,3]<-round(state1.HiSSE$loglik,3)
+results[5,3]<-round(full.HiSSE$loglik,3)
+
+#AICc
+results[1,4]<-round(CID$AICc,3)
+results[2,4]<-round(full.BiSSE$AICc,3)
+results[3,4]<-round(state0.HiSSE$AICc,3)
+results[4,4]<-round(state1.HiSSE$AICc,3)
+results[5,4]<-round(full.HiSSE$AICc,3)
+
+#deltaAIC
+all.AICc<-c(as.numeric(results[,4]))
+deltaAIC<-akaike.weights(all.AICc)
+results[,5]<-round(deltaAIC$deltaAIC, 3)
+
+full.HiSSE$index.par
+print(results)
+write.table(results, file="Results_HiSSE_Papilionidae.txt",quote=FALSE,sep="\t",row.names=FALSE)
+
+## Marginal ancestral state reconstruction and rate estimates
