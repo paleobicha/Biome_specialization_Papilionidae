@@ -1,0 +1,19 @@
+#######################################################################
+######################## Variance Partition ###########################
+#######################################################################
+
+library(vegan)
+
+
+sp <- df_abc$dr
+names(sp) <- df_abc$species
+sp <- as.data.frame(sp)
+
+var <- df_abc[,c(3,4)]
+row.names(var) <- df_abc$species
+head(var)
+var$area <- log(var$area)
+var$bsi <- as.numeric(var$bsi)
+
+varp <- varpart (dr, ~ area, ~ bsi, data = df_abc)
+varp
